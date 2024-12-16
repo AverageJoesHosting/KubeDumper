@@ -44,7 +44,12 @@ get_namespaces() {
 
 # Function to prepare output directory
 prepare_output_directory() {
-    mkdir -p "$OUTPUT_DIR"
+    if [[ -z "$OUTPUT_DIR" ]]; then
+        echo "Error: Output directory is not specified."
+        exit 1
+    fi
+
+    mkdir -p "$OUTPUT_DIR" || { echo "Error: Failed to create output directory: $OUTPUT_DIR"; exit 1; }
     echo "Results will be saved to: $OUTPUT_DIR"
 }
 
@@ -52,15 +57,15 @@ prepare_output_directory() {
 collect_meta_artifacts() {
     echo "Collecting meta artifacts..."
     meta_dir="$OUTPUT_DIR/meta"
-    mkdir -p "$meta_dir"
+    mkdir -p "$meta_dir" || { echo "Error: Failed to create directory: $meta_dir"; exit 1; }
 
     echo "  Collecting cluster information..."
-    kubectl cluster-info > "$meta_dir/cluster_info.txt" 2>/dev/null
-    kubectl get nodes -o wide > "$meta_dir/nodes.txt" 2>/dev/null
-    kubectl get namespaces > "$meta_dir/namespaces.txt" 2>/dev/null
-    kubectl api-resources > "$meta_dir/api_resources.txt" 2>/dev/null
-    kubectl version > "$meta_dir/version.txt" 2>/dev/null
-    kubectl config view > "$meta_dir/config_context.txt" 2>/dev/null
+    kubectl cluster-info > "$meta_dir/cluster_info.txt" 2>/dev/null || echo "Failed to retrieve cluster information."
+    kubectl get nodes -o wide > "$meta_dir/nodes.txt" 2>/dev/null || echo "Failed to retrieve node information."
+    kubectl get namespaces > "$meta_dir/namespaces.txt" 2>/dev/null || echo "Failed to retrieve namespaces."
+    kubectl api-resources > "$meta_dir/api_resources.txt" 2>/dev/null || echo "Failed to retrieve API resources."
+    kubectl version > "$meta_dir/version.txt" 2>/dev/null || echo "Failed to retrieve Kubernetes version."
+    kubectl config view > "$meta_dir/config_context.txt" 2>/dev/null || echo "Failed to retrieve configuration context."
 
     echo "Meta artifacts saved in $meta_dir."
 }
@@ -182,8 +187,10 @@ check_misconfigured_services_ingress() {
 }
 
 # Parse command-line arguments
-for arg in "$@"; do
-    case $arg in
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -n) NAMESPACE="$2"; shift ;;
+        -o) OUTPUT_DIR="$2"; shift ;;
         --check-secrets) check_exposed_secrets ;;
         --check-env-vars) check_env_variables ;;
         --check-privileged) check_privileged_pods ;;
@@ -192,10 +199,8 @@ for arg in "$@"; do
         --collect-manifests) collect_meta_artifacts ;;
         --meta) collect_meta_artifacts ;;
         --all-checks) ALL_CHECKS=true ;;
-        -n) NAMESPACE="$2"; shift ;;
-        -o) OUTPUT_DIR="$2"; shift ;;
         -h|--help) display_help ;;
-        *) echo "Unknown option: $arg"; display_help ;;
+        *) echo "Unknown option: $1"; display_help ;;
     esac
     shift
 done
