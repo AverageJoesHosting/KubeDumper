@@ -323,7 +323,19 @@ done
 # Prepare the output directory
 prepare_output_directory
 
-# If ALL_CHECKS is true and THREADS > 1, run all checks in parallel (if GNU parallel is installed)
+# After all function definitions
+export -f execute_check
+export -f collect_meta_artifacts_real
+export -f check_exposed_secrets
+export -f check_env_variables
+export -f check_privileged_pods
+export -f check_api_access
+export -f check_ingress
+export -f check_rbac
+export -f check_labels
+export -f check_failed_pods
+export -f check_resources
+
 if $ALL_CHECKS; then
     CHECKS=("collect_meta_artifacts_real"
             "check_exposed_secrets"
@@ -337,7 +349,6 @@ if $ALL_CHECKS; then
             "check_resources")
 
     if [[ $THREADS -gt 1 ]]; then
-        # Check if parallel is installed
         if command -v parallel &>/dev/null; then
             echo -e "${CYAN}Running all checks with $THREADS threads...${NC}"
             printf '%s\n' "${CHECKS[@]}" | parallel -j "$THREADS" execute_check {}
@@ -348,7 +359,6 @@ if $ALL_CHECKS; then
             done
         fi
     else
-        # Run checks sequentially
         for c in "${CHECKS[@]}"; do
             execute_check "$c"
         done
@@ -356,5 +366,6 @@ if $ALL_CHECKS; then
 
     generate_summary
 fi
+
 
 echo -e "${GREEN}Audit completed. Results are saved to $OUTPUT_DIR.${NC}"
