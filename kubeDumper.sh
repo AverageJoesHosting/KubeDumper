@@ -5,9 +5,10 @@ OUTPUT_DIR="./k8s_audit_results"
 NAMESPACE="all" # Default to all namespaces
 OUTPUT_FORMAT="text" # Default output format
 ALL_CHECKS=false
-DRY_RUN="false"   # Changed to string
-VERBOSE="false"   # Changed to string
+DRY_RUN="false"   # Use string for DRY_RUN
+VERBOSE="false"   # Use string for VERBOSE
 THREADS=1 # Default single-threaded
+META_REQUESTED=false # Track if meta was explicitly requested
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -16,49 +17,45 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No color
 
-# Function to display help menu
 display_help() {
     echo -e "${CYAN}KubeDumper - Kubernetes Security Audit Tool${NC}"
     echo
     echo "Usage: $0 [options]"
     echo "Options:"
-    echo "  -n <namespace(s)>      Specify one or more namespaces (comma-separated). Default: all namespaces."
+    echo "  -n <namespace(s)>      Specify one or more namespaces (comma-separated). Default: all."
     echo "  -o <output_dir>        Specify an output directory for results. Default: ./k8s_audit_results."
-    echo "  --format <text|json|html> Specify the output format. Default: text."
-    echo "  --check-secrets         Check for exposed secrets."
-    echo "  --check-env-vars        Check for sensitive environment variables."
-    echo "  --check-privileged      Check for privileged/root pods."
-    echo "  --check-api-access      Check for insecure API access."
-    echo "  --check-ingress         Check for misconfigured services/ingress."
-    echo "  --check-rbac            Check for RBAC misconfigurations."
-    echo "  --check-labels          Check for missing labels (e.g. 'app' label)."
-    echo "  --check-failed-pods     Check for failed pods and record their details."
-    echo "  --check-resources       Check for missing resource limits and requests."
-    echo "  --all-checks            Run all checks."
-    echo "  --meta                  Collect meta artifacts about the cluster."
-    echo "  --dry-run               Preview actions without executing."
-    echo "  --verbose               Enable detailed logs."
-    echo "  --threads <num>         Number of threads for parallel execution of all checks (default: 1)."
-    echo "  -h, --help              Display this help menu."
+    echo "  --format <text|json|html> Specify output format (default: text)."
+    echo "  --check-secrets        Check for exposed secrets."
+    echo "  --check-env-vars       Check for sensitive environment variables."
+    echo "  --check-privileged     Check for privileged/root pods."
+    echo "  --check-api-access     Check for insecure API access."
+    echo "  --check-ingress        Check for misconfigured ingress."
+    echo "  --check-rbac           Check for RBAC misconfigurations."
+    echo "  --check-labels         Check for missing labels (e.g. 'app' label)."
+    echo "  --check-failed-pods    Check for failed pods."
+    echo "  --check-resources      Check for missing resource requests/limits."
+    echo "  --all-checks           Run all checks."
+    echo "  --meta                 Collect meta artifacts about the cluster."
+    echo "  --dry-run              Preview actions without executing."
+    echo "  --verbose              Enable detailed logs."
+    echo "  --threads <num>        Number of threads for parallel checks (default: 1)."
+    echo "  -h, --help             Display this help menu."
     exit 0
 }
 
-# Logging function
 log() {
     local message="$1"
-    if [ "$VERBOSE" = "true" ]; then  # Changed condition to string comparison
+    if [ "$VERBOSE" = "true" ]; then
         echo -e "${CYAN}[LOG]${NC} $message"
         echo "[LOG] $message" >> kubeDumper.log
     fi
 }
 
-# Prepare the output directory
 prepare_output_directory() {
     mkdir -p "$OUTPUT_DIR" || { echo -e "${RED}Error: Failed to create output directory: $OUTPUT_DIR${NC}"; exit 1; }
     log "Output directory prepared at $OUTPUT_DIR."
 }
 
-# Collect namespaces
 get_namespaces() {
     if [[ "$NAMESPACE" == "all" ]]; then
         kubectl get namespaces -o jsonpath="{.items[*].metadata.name}" 2>/dev/null || echo -e "${RED}Error retrieving namespaces.${NC}"
@@ -67,10 +64,8 @@ get_namespaces() {
     fi
 }
 
-# Dry-run check wrapper
 execute_check() {
     local check_function="$1"
-    # Changed condition to string comparison
     if [ "$DRY_RUN" = "true" ]; then
         echo -e "${YELLOW}[DRY-RUN] Would execute: $check_function${NC}"
         log "[DRY-RUN] Skipped: $check_function"
@@ -79,7 +74,6 @@ execute_check() {
     fi
 }
 
-# Collect meta artifacts
 collect_meta_artifacts_real() {
     echo -e "${CYAN}Collecting meta artifacts...${NC}"
     local meta_dir="$OUTPUT_DIR/meta"
@@ -94,7 +88,6 @@ collect_meta_artifacts_real() {
     echo -e "${GREEN}Meta artifacts collected in $meta_dir.${NC}"
 }
 
-# Check for exposed secrets
 check_exposed_secrets() {
     echo -e "${CYAN}Checking for exposed secrets...${NC}"
     for ns in $(get_namespaces); do
@@ -103,7 +96,6 @@ check_exposed_secrets() {
         mkdir -p "$ns_dir"
 
         secrets=$(kubectl get secrets -n "$ns" -o jsonpath="{.items[*].metadata.name}" 2>/dev/null)
-
         for secret in $secrets; do
             secret_file="$ns_dir/$secret.txt"
             kubectl get secret "$secret" -n "$ns" -o json | jq -r '.data | to_entries[] | "\(.key): \(.value | @base64d)"' > "$secret_file" 2>/dev/null
@@ -117,7 +109,6 @@ check_exposed_secrets() {
     done
 }
 
-# Check environment variables
 check_env_variables() {
     echo -e "${CYAN}Checking for sensitive environment variables...${NC}"
     for ns in $(get_namespaces); do
@@ -126,7 +117,6 @@ check_env_variables() {
         mkdir -p "$ns_dir"
 
         pods=$(kubectl get pods -n "$ns" -o jsonpath="{.items[*].metadata.name}" 2>/dev/null)
-
         for pod in $pods; do
             pod_file="$ns_dir/$pod.txt"
             kubectl get pod "$pod" -n "$ns" -o json | jq -r '
@@ -142,7 +132,6 @@ check_env_variables() {
     done
 }
 
-# Check for privileged/root pods
 check_privileged_pods() {
     echo -e "${CYAN}Checking for privileged/root pods...${NC}"
     for ns in $(get_namespaces); do
@@ -166,7 +155,6 @@ check_privileged_pods() {
     done
 }
 
-# Check API access
 check_api_access() {
     echo -e "${CYAN}Checking API access for anonymous user...${NC}"
     local api_dir="$OUTPUT_DIR/api_access"
@@ -180,7 +168,6 @@ check_api_access() {
     fi
 }
 
-# Check ingress
 check_ingress() {
     echo -e "${CYAN}Checking ingress configurations...${NC}"
     for ns in $(get_namespaces); do
@@ -200,7 +187,6 @@ check_ingress() {
     done
 }
 
-# Check RBAC misconfigurations
 check_rbac() {
     echo -e "${CYAN}Checking RBAC configurations...${NC}"
     rbac_dir="$OUTPUT_DIR/rbac"
@@ -219,7 +205,6 @@ check_rbac() {
     fi
 }
 
-# Check labels
 check_labels() {
     echo -e "${CYAN}Checking for missing 'app' labels...${NC}"
     for ns in $(get_namespaces); do
@@ -241,7 +226,6 @@ check_labels() {
     done
 }
 
-# Check failed pods
 check_failed_pods() {
     echo -e "${CYAN}Checking for failed pods...${NC}"
     for ns in $(get_namespaces); do
@@ -259,7 +243,6 @@ check_failed_pods() {
     done
 }
 
-# Check resources
 check_resources() {
     echo -e "${CYAN}Checking for missing resource limits and requests...${NC}"
     for ns in $(get_namespaces); do
@@ -282,7 +265,6 @@ check_resources() {
     done
 }
 
-# Generate summary
 generate_summary() {
     echo -e "${CYAN}Generating summary report...${NC}"
     local summary_file="$OUTPUT_DIR/summary_report.txt"
@@ -311,23 +293,21 @@ while [[ "$#" -gt 0 ]]; do
         --check-failed-pods) execute_check "check_failed_pods" ;;
         --check-resources) execute_check "check_resources" ;;
         --all-checks) ALL_CHECKS=true ;;
-        --dry-run) DRY_RUN="true" ;; # Set string to "true"
-        --verbose) VERBOSE="true" ;; # Set string to "true"
+        --dry-run) DRY_RUN="true" ;;
+        --verbose) VERBOSE="true" ;;
         --threads) THREADS="$2"; shift ;;
-        --meta) execute_check "collect_meta_artifacts_real" ;;
+        --meta) META_REQUESTED=true; execute_check "collect_meta_artifacts_real" ;;
         -h|--help) display_help ;;
         *) echo -e "${RED}Unknown option: $1${NC}"; display_help ;;
     esac
     shift
 done
 
-# Export variables used by checks and parallel execution
 export NAMESPACE OUTPUT_DIR OUTPUT_FORMAT ALL_CHECKS DRY_RUN VERBOSE THREADS
 
-# Prepare the output directory
 prepare_output_directory
 
-# Export functions so they are available to parallel subshells
+# Export functions so they can be used by parallel
 export -f execute_check
 export -f collect_meta_artifacts_real
 export -f check_exposed_secrets
@@ -341,16 +321,23 @@ export -f check_failed_pods
 export -f check_resources
 
 if [ "$ALL_CHECKS" = "true" ]; then
-    CHECKS=("collect_meta_artifacts_real"
-            "check_exposed_secrets"
-            "check_env_variables"
-            "check_privileged_pods"
-            "check_api_access"
-            "check_ingress"
-            "check_rbac"
-            "check_labels"
-            "check_failed_pods"
-            "check_resources")
+    # If user didn't request meta separately but wants all checks, run meta now, once, before parallel checks
+    if [ "$META_REQUESTED" = "false" ]; then
+        execute_check "collect_meta_artifacts_real"
+    fi
+
+    # Only the parallelizable checks (excluding meta)
+    CHECKS=(
+        "check_exposed_secrets"
+        "check_env_variables"
+        "check_privileged_pods"
+        "check_api_access"
+        "check_ingress"
+        "check_rbac"
+        "check_labels"
+        "check_failed_pods"
+        "check_resources"
+    )
 
     if [ "$THREADS" -gt 1 ]; then
         if command -v parallel &>/dev/null; then
