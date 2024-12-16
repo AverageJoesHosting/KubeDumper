@@ -308,6 +308,8 @@ export NAMESPACE OUTPUT_DIR OUTPUT_FORMAT ALL_CHECKS DRY_RUN VERBOSE THREADS
 prepare_output_directory
 
 # Export functions so they can be used by parallel
+export -f log
+export -f get_namespaces
 export -f execute_check
 export -f collect_meta_artifacts_real
 export -f check_exposed_secrets
@@ -319,6 +321,8 @@ export -f check_rbac
 export -f check_labels
 export -f check_failed_pods
 export -f check_resources
+
+
 
 if [ "$ALL_CHECKS" = "true" ]; then
     # If user didn't request meta separately but wants all checks, run meta now, once, before parallel checks
