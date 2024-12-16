@@ -5,8 +5,8 @@ OUTPUT_DIR="./k8s_audit_results"
 NAMESPACE="all" # Default to all namespaces
 OUTPUT_FORMAT="text" # Default output format
 ALL_CHECKS=false
-DRY_RUN=false
-VERBOSE=false
+DRY_RUN="false"   # Changed to string
+VERBOSE="false"   # Changed to string
 THREADS=1 # Default single-threaded
 
 # Colors for output
@@ -46,7 +46,7 @@ display_help() {
 # Logging function
 log() {
     local message="$1"
-    if $VERBOSE; then
+    if [ "$VERBOSE" = "true" ]; then  # Changed condition to string comparison
         echo -e "${CYAN}[LOG]${NC} $message"
         echo "[LOG] $message" >> kubeDumper.log
     fi
@@ -70,7 +70,8 @@ get_namespaces() {
 # Dry-run check wrapper
 execute_check() {
     local check_function="$1"
-    if $DRY_RUN; then
+    # Changed condition to string comparison
+    if [ "$DRY_RUN" = "true" ]; then
         echo -e "${YELLOW}[DRY-RUN] Would execute: $check_function${NC}"
         log "[DRY-RUN] Skipped: $check_function"
     else
@@ -165,7 +166,7 @@ check_privileged_pods() {
     done
 }
 
-# Check API access (anonymous should not have full access)
+# Check API access
 check_api_access() {
     echo -e "${CYAN}Checking API access for anonymous user...${NC}"
     local api_dir="$OUTPUT_DIR/api_access"
@@ -179,7 +180,7 @@ check_api_access() {
     fi
 }
 
-# Check ingress misconfigurations (no TLS)
+# Check ingress
 check_ingress() {
     echo -e "${CYAN}Checking ingress configurations...${NC}"
     for ns in $(get_namespaces); do
@@ -218,7 +219,7 @@ check_rbac() {
     fi
 }
 
-# Check missing labels (e.g. 'app' label)
+# Check labels
 check_labels() {
     echo -e "${CYAN}Checking for missing 'app' labels...${NC}"
     for ns in $(get_namespaces); do
@@ -240,7 +241,7 @@ check_labels() {
     done
 }
 
-# Check for failed pods
+# Check failed pods
 check_failed_pods() {
     echo -e "${CYAN}Checking for failed pods...${NC}"
     for ns in $(get_namespaces); do
@@ -258,7 +259,7 @@ check_failed_pods() {
     done
 }
 
-# Check resource limits
+# Check resources
 check_resources() {
     echo -e "${CYAN}Checking for missing resource limits and requests...${NC}"
     for ns in $(get_namespaces); do
@@ -310,8 +311,8 @@ while [[ "$#" -gt 0 ]]; do
         --check-failed-pods) execute_check "check_failed_pods" ;;
         --check-resources) execute_check "check_resources" ;;
         --all-checks) ALL_CHECKS=true ;;
-        --dry-run) DRY_RUN=true ;;
-        --verbose) VERBOSE=true ;;
+        --dry-run) DRY_RUN="true" ;; # Set string to "true"
+        --verbose) VERBOSE="true" ;; # Set string to "true"
         --threads) THREADS="$2"; shift ;;
         --meta) execute_check "collect_meta_artifacts_real" ;;
         -h|--help) display_help ;;
@@ -320,10 +321,13 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+# Export variables used by checks and parallel execution
+export NAMESPACE OUTPUT_DIR OUTPUT_FORMAT ALL_CHECKS DRY_RUN VERBOSE THREADS
+
 # Prepare the output directory
 prepare_output_directory
 
-# After all function definitions
+# Export functions so they are available to parallel subshells
 export -f execute_check
 export -f collect_meta_artifacts_real
 export -f check_exposed_secrets
@@ -336,7 +340,7 @@ export -f check_labels
 export -f check_failed_pods
 export -f check_resources
 
-if $ALL_CHECKS; then
+if [ "$ALL_CHECKS" = "true" ]; then
     CHECKS=("collect_meta_artifacts_real"
             "check_exposed_secrets"
             "check_env_variables"
@@ -348,7 +352,7 @@ if $ALL_CHECKS; then
             "check_failed_pods"
             "check_resources")
 
-    if [[ $THREADS -gt 1 ]]; then
+    if [ "$THREADS" -gt 1 ]; then
         if command -v parallel &>/dev/null; then
             echo -e "${CYAN}Running all checks with $THREADS threads...${NC}"
             printf '%s\n' "${CHECKS[@]}" | parallel -j "$THREADS" execute_check {}
@@ -366,6 +370,5 @@ if $ALL_CHECKS; then
 
     generate_summary
 fi
-
 
 echo -e "${GREEN}Audit completed. Results are saved to $OUTPUT_DIR.${NC}"
