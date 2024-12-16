@@ -11,6 +11,7 @@
   - Privileged/root pods
   - Misconfigured API access and ingress
 - Collect all Kubernetes manifests for detailed analysis.
+- Flexible output location option for saving results to a custom directory.
 
 ## Usage
 
@@ -19,6 +20,7 @@
 ### Options
 
 - `-n <namespace>`: Specify a namespace to audit (default: all namespaces).
+- `-o <output_dir>`: Specify an output directory for results (default: `./k8s_audit_results`).
 - `--check-secrets`: Check for exposed secrets.
 - `--check-env-vars`: Check for sensitive environment variables.
 - `--check-privileged`: Check for privileged/root pods.
@@ -29,22 +31,29 @@
 - `--meta`: Collect meta artifacts about the cluster.
 - `-h, --help`: Display help menu.
 
-## Example
+## Examples
 
-Audit all namespaces and collect meta information:
+### Audit all namespaces and collect meta information:
+```bash
+./kubeDumper.sh --all-checks
+```
 
-`./kubeDumper.sh --all-checks`
+### Audit a specific namespace:
+```bash
+./kubeDumper.sh -n my-namespace --check-secrets
+```
 
-Audit a specific namespace:
-
-`./kubeDumper.sh -n my-namespace --check-secrets`
+### Save results to a custom output directory:
+```bash
+./kubeDumper.sh --all-checks -o /path/to/custom/output
+```
 
 ## Output Structure
 
-Results are saved in a structured directory (`k8s_audit_results/`):
+Results are saved in a structured directory. By default, this is `./k8s_audit_results/`, but you can specify a custom location using the `-o` option.
 
 ```
-k8s_audit_results/
+<output_dir>/
 ├── meta/
 │   ├── cluster_info.txt
 │   ├── nodes.txt

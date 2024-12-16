@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Output base directory for storing audit results
+# Default output directory for storing audit results
 OUTPUT_DIR="./k8s_audit_results"
 NAMESPACE="all" # Default to all namespaces
 ALL_CHECKS=false
@@ -12,6 +12,7 @@ display_help() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -n <namespace>       Specify a namespace to audit (default: all namespaces)."
+    echo "  -o <output_dir>      Specify an output directory for results (default: ./k8s_audit_results)."
     echo "  --check-secrets      Check for exposed secrets."
     echo "  --check-env-vars     Check for sensitive environment variables."
     echo "  --check-privileged   Check for privileged/root pods."
@@ -39,6 +40,12 @@ get_namespaces() {
     else
         echo "$NAMESPACE"
     fi
+}
+
+# Function to prepare output directory
+prepare_output_directory() {
+    mkdir -p "$OUTPUT_DIR"
+    echo "Results will be saved to: $OUTPUT_DIR"
 }
 
 # Function to collect meta artifacts
@@ -184,15 +191,17 @@ for arg in "$@"; do
         --check-ingress) check_misconfigured_services_ingress ;;
         --collect-manifests) collect_meta_artifacts ;;
         --meta) collect_meta_artifacts ;;
-        --all-checks) 
-            ALL_CHECKS=true
-            ;;
+        --all-checks) ALL_CHECKS=true ;;
         -n) NAMESPACE="$2"; shift ;;
+        -o) OUTPUT_DIR="$2"; shift ;;
         -h|--help) display_help ;;
         *) echo "Unknown option: $arg"; display_help ;;
     esac
     shift
 done
+
+# Prepare the output directory
+prepare_output_directory
 
 # Run all checks if selected
 if $ALL_CHECKS; then
