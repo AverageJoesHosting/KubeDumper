@@ -7,6 +7,7 @@ OUTPUT_FORMAT="text" # Default output format
 ALL_CHECKS=false
 DRY_RUN=false
 VERBOSE=false
+THREADS=1 # Default single-threaded
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -21,7 +22,7 @@ display_help() {
     echo
     echo "Usage: $0 [options]"
     echo "Options:"
-    echo "  -n <namespace(s)>      Specify one or more namespaces to audit (comma-separated). Default: all namespaces."
+    echo "  -n <namespace(s)>      Specify one or more namespaces (comma-separated). Default: all namespaces."
     echo "  -o <output_dir>        Specify an output directory for results. Default: ./k8s_audit_results."
     echo "  --format <text|json|html> Specify the output format. Default: text."
     echo "  --check-secrets         Check for exposed secrets."
@@ -37,6 +38,7 @@ display_help() {
     echo "  --meta                  Collect meta artifacts about the cluster."
     echo "  --dry-run               Preview actions without executing."
     echo "  --verbose               Enable detailed logs."
+    echo "  --threads <num>         Number of threads for parallel execution of all checks (default: 1)."
     echo "  -h, --help              Display this help menu."
     exit 0
 }
@@ -95,7 +97,7 @@ collect_meta_artifacts_real() {
 check_exposed_secrets() {
     echo -e "${CYAN}Checking for exposed secrets...${NC}"
     for ns in $(get_namespaces); do
-        echo "  Namespace: $ns"
+        echo -e "${CYAN}  Namespace: $ns${NC}"
         ns_dir="$OUTPUT_DIR/$ns/exposed_secrets"
         mkdir -p "$ns_dir"
 
@@ -105,10 +107,10 @@ check_exposed_secrets() {
             secret_file="$ns_dir/$secret.txt"
             kubectl get secret "$secret" -n "$ns" -o json | jq -r '.data | to_entries[] | "\(.key): \(.value | @base64d)"' > "$secret_file" 2>/dev/null
             if [[ -s "$secret_file" ]]; then
-                echo "    Secret '$secret' in namespace '$ns' has exposed data: saved to $secret_file"
+                echo -e "${YELLOW}    Secret '$secret' in namespace '$ns' has exposed data: saved to $secret_file${NC}"
             else
                 rm -f "$secret_file"
-                echo "    Secret '$secret' in namespace '$ns' has no decodable data."
+                echo -e "${CYAN}    Secret '$secret' in namespace '$ns' has no decodable data.${NC}"
             fi
         done
     done
@@ -118,7 +120,7 @@ check_exposed_secrets() {
 check_env_variables() {
     echo -e "${CYAN}Checking for sensitive environment variables...${NC}"
     for ns in $(get_namespaces); do
-        echo "  Namespace: $ns"
+        echo -e "${CYAN}  Namespace: $ns${NC}"
         ns_dir="$OUTPUT_DIR/$ns/env_variables"
         mkdir -p "$ns_dir"
 
@@ -130,10 +132,10 @@ check_env_variables() {
                 .spec.containers[].env[]? | "\(.name): \(.value // "ValueFrom: " + (.valueFrom | tostring))"
             ' > "$pod_file" 2>/dev/null
             if [[ -s "$pod_file" ]]; then
-                echo "    Environment variables for pod '$pod' stored in $pod_file"
+                echo -e "${YELLOW}    Environment variables for pod '$pod' stored in $pod_file${NC}"
             else
                 rm -f "$pod_file"
-                echo "    No sensitive environment variables found for pod '$pod'."
+                echo -e "${CYAN}    No sensitive environment variables found for pod '$pod'.${NC}"
             fi
         done
     done
@@ -143,21 +145,21 @@ check_env_variables() {
 check_privileged_pods() {
     echo -e "${CYAN}Checking for privileged/root pods...${NC}"
     for ns in $(get_namespaces); do
-        echo "  Namespace: $ns"
+        echo -e "${CYAN}  Namespace: $ns${NC}"
         ns_dir="$OUTPUT_DIR/$ns/privileged_pods"
         mkdir -p "$ns_dir"
 
         pods=$(kubectl get pods -n "$ns" -o json)
         echo "$pods" | jq -r '
-            .items[] | 
-            select(.spec.containers[].securityContext.privileged == true or .spec.containers[].securityContext.runAsUser == 0) | 
+            .items[] |
+            select(.spec.containers[].securityContext.privileged == true or .spec.containers[].securityContext.runAsUser == 0) |
             .metadata.name
         ' > "$ns_dir/privileged_pods.txt"
 
         if [[ -s "$ns_dir/privileged_pods.txt" ]]; then
-            echo "    Privileged/root pods found in namespace '$ns'. Results in $ns_dir/privileged_pods.txt"
+            echo -e "${YELLOW}    Privileged/root pods found in namespace '$ns'. Results in $ns_dir/privileged_pods.txt${NC}"
         else
-            echo "    No privileged/root pods in namespace '$ns'."
+            echo -e "${CYAN}    No privileged/root pods in namespace '$ns'.${NC}"
             rm -f "$ns_dir/privileged_pods.txt"
         fi
     done
@@ -171,10 +173,9 @@ check_api_access() {
 
     kubectl auth can-i '*' '*' --as=system:anonymous > "$api_dir/insecure_api_access.txt" 2>/dev/null
     if grep -q "yes" "$api_dir/insecure_api_access.txt"; then
-        echo "    Anonymous user has broad permissions. Results in $api_dir/insecure_api_access.txt"
+        echo -e "${YELLOW}    Anonymous user has broad permissions. Results in $api_dir/insecure_api_access.txt${NC}"
     else
-        echo "    Anonymous access is restricted."
-        # Keep the file for reference even if no 'yes' found
+        echo -e "${GREEN}    Anonymous access is restricted.${NC}"
     fi
 }
 
@@ -182,7 +183,7 @@ check_api_access() {
 check_ingress() {
     echo -e "${CYAN}Checking ingress configurations...${NC}"
     for ns in $(get_namespaces); do
-        echo "  Namespace: $ns"
+        echo -e "${CYAN}  Namespace: $ns${NC}"
         ns_dir="$OUTPUT_DIR/$ns/ingress"
         mkdir -p "$ns_dir"
         kubectl get ingress -n "$ns" -o json | jq -r '
@@ -190,9 +191,9 @@ check_ingress() {
         ' > "$ns_dir/insecure_ingress.txt"
 
         if [[ -s "$ns_dir/insecure_ingress.txt" ]]; then
-            echo "    Insecure ingress(es) found in namespace '$ns'. See $ns_dir/insecure_ingress.txt"
+            echo -e "${YELLOW}    Insecure ingress(es) found in namespace '$ns'. See $ns_dir/insecure_ingress.txt${NC}"
         else
-            echo "    All ingress in namespace '$ns' have TLS configured or no ingress present."
+            echo -e "${CYAN}    All ingress in namespace '$ns' have TLS configured or no ingress present.${NC}"
             rm -f "$ns_dir/insecure_ingress.txt"
         fi
     done
@@ -206,15 +207,14 @@ check_rbac() {
 
     kubectl get roles,rolebindings,clusterroles,clusterrolebindings -A -o json > "$rbac_dir/rbac.json" 2>/dev/null
     if [[ -s "$rbac_dir/rbac.json" ]]; then
-        # Detect overly permissive roles (just an example heuristic)
         jq -r '
             .items[] |
             select(.rules?[]?.resources? | index("*")) |
             "Overly permissive role: \(.metadata.name) in namespace \(.metadata.namespace // "cluster-scope")"
         ' "$rbac_dir/rbac.json" > "$rbac_dir/rbac_misconfigurations.txt"
-        echo "    RBAC details saved to $rbac_dir. Misconfigurations in rbac_misconfigurations.txt if any."
+        echo -e "${YELLOW}    RBAC details saved to $rbac_dir. Misconfigurations in rbac_misconfigurations.txt if any.${NC}"
     else
-        echo "    No RBAC data retrieved."
+        echo -e "${CYAN}    No RBAC data retrieved.${NC}"
     fi
 }
 
@@ -222,10 +222,9 @@ check_rbac() {
 check_labels() {
     echo -e "${CYAN}Checking for missing 'app' labels...${NC}"
     for ns in $(get_namespaces); do
-        echo "  Namespace: $ns"
+        echo -e "${CYAN}  Namespace: $ns${NC}"
         ns_dir="$OUTPUT_DIR/$ns/labels"
         mkdir -p "$ns_dir"
-        # Check pods missing 'app' label
         kubectl get pods -n "$ns" -o json | jq -r '
             .items[] |
             select(.metadata.labels.app == null) |
@@ -233,9 +232,9 @@ check_labels() {
         ' > "$ns_dir/missing_labels.txt"
 
         if [[ -s "$ns_dir/missing_labels.txt" ]]; then
-            echo "    Pods missing 'app' label in namespace '$ns'. See $ns_dir/missing_labels.txt"
+            echo -e "${YELLOW}    Pods missing 'app' label in namespace '$ns'. See $ns_dir/missing_labels.txt${NC}"
         else
-            echo "    All pods in namespace '$ns' have 'app' labels or no pods present."
+            echo -e "${CYAN}    All pods in namespace '$ns' have 'app' labels or no pods present.${NC}"
             rm -f "$ns_dir/missing_labels.txt"
         fi
     done
@@ -245,17 +244,15 @@ check_labels() {
 check_failed_pods() {
     echo -e "${CYAN}Checking for failed pods...${NC}"
     for ns in $(get_namespaces); do
-        echo "  Namespace: $ns"
+        echo -e "${CYAN}  Namespace: $ns${NC}"
         ns_dir="$OUTPUT_DIR/$ns/failed_pods"
         mkdir -p "$ns_dir"
-
-        # Record all failed pods
         kubectl get pods -n "$ns" --field-selector=status.phase=Failed -o json > "$ns_dir/failed_pods.json" 2>/dev/null
 
         if [[ -s "$ns_dir/failed_pods.json" ]]; then
-            echo "    Failed pods found in namespace '$ns'. Details in $ns_dir/failed_pods.json"
+            echo -e "${YELLOW}    Failed pods found in namespace '$ns'. Details in $ns_dir/failed_pods.json${NC}"
         else
-            echo "    No failed pods in namespace '$ns'."
+            echo -e "${CYAN}    No failed pods in namespace '$ns'.${NC}"
             rm -f "$ns_dir/failed_pods.json"
         fi
     done
@@ -265,7 +262,7 @@ check_failed_pods() {
 check_resources() {
     echo -e "${CYAN}Checking for missing resource limits and requests...${NC}"
     for ns in $(get_namespaces); do
-        echo "  Namespace: $ns"
+        echo -e "${CYAN}  Namespace: $ns${NC}"
         ns_dir="$OUTPUT_DIR/$ns/resources"
         mkdir -p "$ns_dir"
 
@@ -276,9 +273,9 @@ check_resources() {
         ' > "$ns_dir/missing_resources.txt" 2>/dev/null
 
         if [[ -s "$ns_dir/missing_resources.txt" ]]; then
-            echo "    Pods missing resource limits/requests in namespace '$ns'. See $ns_dir/missing_resources.txt"
+            echo -e "${YELLOW}    Pods missing resource limits/requests in namespace '$ns'. See $ns_dir/missing_resources.txt${NC}"
         else
-            echo "    All pods in namespace '$ns' have proper resource limits and requests."
+            echo -e "${CYAN}    All pods in namespace '$ns' have proper resource limits and requests.${NC}"
             rm -f "$ns_dir/missing_resources.txt"
         fi
     done
@@ -315,6 +312,7 @@ while [[ "$#" -gt 0 ]]; do
         --all-checks) ALL_CHECKS=true ;;
         --dry-run) DRY_RUN=true ;;
         --verbose) VERBOSE=true ;;
+        --threads) THREADS="$2"; shift ;;
         --meta) execute_check "collect_meta_artifacts_real" ;;
         -h|--help) display_help ;;
         *) echo -e "${RED}Unknown option: $1${NC}"; display_help ;;
@@ -325,18 +323,37 @@ done
 # Prepare the output directory
 prepare_output_directory
 
-# Run all checks if selected
+# If ALL_CHECKS is true and THREADS > 1, run all checks in parallel (if GNU parallel is installed)
 if $ALL_CHECKS; then
-    execute_check "collect_meta_artifacts_real"
-    execute_check "check_exposed_secrets"
-    execute_check "check_env_variables"
-    execute_check "check_privileged_pods"
-    execute_check "check_api_access"
-    execute_check "check_ingress"
-    execute_check "check_rbac"
-    execute_check "check_labels"
-    execute_check "check_failed_pods"
-    execute_check "check_resources"
+    CHECKS=("collect_meta_artifacts_real"
+            "check_exposed_secrets"
+            "check_env_variables"
+            "check_privileged_pods"
+            "check_api_access"
+            "check_ingress"
+            "check_rbac"
+            "check_labels"
+            "check_failed_pods"
+            "check_resources")
+
+    if [[ $THREADS -gt 1 ]]; then
+        # Check if parallel is installed
+        if command -v parallel &>/dev/null; then
+            echo -e "${CYAN}Running all checks with $THREADS threads...${NC}"
+            printf '%s\n' "${CHECKS[@]}" | parallel -j "$THREADS" execute_check {}
+        else
+            echo -e "${YELLOW}GNU parallel not found. Running checks sequentially.${NC}"
+            for c in "${CHECKS[@]}"; do
+                execute_check "$c"
+            done
+        fi
+    else
+        # Run checks sequentially
+        for c in "${CHECKS[@]}"; do
+            execute_check "$c"
+        done
+    fi
+
     generate_summary
 fi
 

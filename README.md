@@ -15,12 +15,14 @@
   - **Missing Labels/Annotations**: Ensure pods and other resources carry required labels (e.g., `app` label).
   - **Failed Pods**: Capture details of pods stuck in failed states for troubleshooting.
   - **Resource Limits and Requests**: Verify that all pods have proper resource requests and limits set.
-- **Run All Checks**: Quickly assess your entire cluster at once.
+- **Run All Checks at Once**: Quickly assess your entire cluster with a single command.
 - **Flexible Output**:
   - Specify custom output directories.
-  - Supports a dry-run mode to simulate actions without making changes.
-  - Verbose mode for detailed logging.
-  - Multiple output formats (text, json, html) planned (default: text).
+  - Dry-run mode to simulate actions without making changes.
+  - Verbose mode for detailed logs.
+  - Future support for multiple output formats (text, JSON, HTML).
+- **Threaded Execution**:
+  - Use `--threads <num>` to run checks in parallel for faster audits on large clusters (requires GNU Parallel).
 
 ## Usage
 
@@ -46,6 +48,7 @@
 - `--meta`: Collect meta artifacts about the cluster.
 - `--dry-run`: Preview actions without executing changes.
 - `--verbose`: Enable detailed logging to assist with debugging.
+- `--threads <num>`: Number of threads to run checks in parallel (default: 1).
 - `-h, --help`: Display this help menu.
 
 ## Examples
@@ -63,6 +66,11 @@
 ### Save results to a custom output directory:
 ```bash
 ./kubeDumper.sh --all-checks -o /path/to/custom/output
+```
+
+### Run all checks in parallel using 4 threads:
+```bash
+./kubeDumper.sh --all-checks --threads 4
 ```
 
 ### Dry Run Example (no changes, just preview):
@@ -105,7 +113,7 @@ Results are saved in a structured directory. By default, this is `./k8s_audit_re
 summary_report.txt
 ```
 
-The structure may vary based on which checks are run and how many namespaces you have. Each category of result is stored in a dedicated subdirectory for easy navigation and analysis.
+The exact structure depends on which checks are run and how many namespaces are audited. Each category is stored in a dedicated subdirectory, making navigation and analysis straightforward.
 
 ## License
 
