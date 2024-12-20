@@ -2,6 +2,8 @@
 
 **KubeDumper** is a comprehensive Kubernetes audit and data collection tool designed to gather security insights, configuration details, and meta information from your cluster. The results are logically organized for easy analysis and troubleshooting.
 
+---
+
 ## Table of Contents
 
 - [Features](#features)
@@ -14,107 +16,91 @@
 - [Logging](#logging)
 - [License](#license)
 
+---
+
 ## Features
 
-- **Meta Collection**: Gather cluster information, node details, namespaces, API resources, and Kubernetes configuration context.
-- **Comprehensive Auditing**: Perform in-depth checks for:
-  - **Exposed Secrets**: Identify secrets containing potentially sensitive data.
-  - **Sensitive Environment Variables**: Review pods for environment variables that may expose credentials.
-  - **Privileged/Root Pods**: Detect pods running with elevated privileges or as root.
-  - **Insecure API Access**: Confirm if anonymous or overly broad permissions are granted to unauthenticated users.
-  - **Misconfigured Ingress**: Identify ingress resources missing TLS or secure configurations.
-  - **RBAC Misconfigurations**: Examine roles, bindings, and cluster roles for overly permissive policies.
-  - **Missing Labels/Annotations**: Ensure pods and other resources carry required labels (e.g., `app` label).
-  - **Failed Pods**: Capture details of pods stuck in failed states for troubleshooting.
-  - **Resource Limits and Requests**: Verify that all pods have proper resource requests and limits set.
-- **Run All Checks at Once**: Quickly assess your entire cluster with a single command.
-- **Flexible Output**:
-  - Specify custom output directories.
-  - Support for multiple output formats: `text`, `json`, and `html`.
-  - Dry-run mode to simulate actions without making changes.
-  - Verbose mode for detailed logs.
-- **Threaded Execution**:
-  - Utilize the `--threads <num>` option to run checks in parallel for faster audits on large clusters (requires GNU Parallel).
-- **Logging**:
-  - Detailed logging with timestamps for traceability.
-  - Logs are saved within the specified output directory.
+### Meta Collection
+- **Cluster Information**: Gather cluster info, nodes, namespaces, API resources, versioning, and configuration contexts.
+- **Kubernetes Dashboard**: Identify the Kubernetes dashboard, if deployed.
+- **Custom Resources (CRs)**: Collect all custom resources (CRs) and organize them for analysis.
+
+### Comprehensive Auditing
+Perform detailed checks on Kubernetes resources:
+- **Secrets**: Identify secrets with potentially exposed sensitive data.
+- **Environment Variables**: Analyze sensitive environment variables in pods.
+- **Privileged/Root Pods**: Detect pods running with elevated privileges or as root.
+- **API Access**: Identify overly permissive API access and anonymous user capabilities.
+- **Ingress and Egress Configurations**:
+  - Detect misconfigured ingress resources (e.g., missing TLS).
+  - Identify unrestricted or overly permissive egress configurations.
+- **RBAC**: Check RBAC configurations for:
+  - Misconfigurations and excessive permissions.
+  - Accounts with `cluster-admin` roles.
+  - Deprecated RBAC APIs.
+- **Pod Security Contexts**: Detect exploitable security context configurations.
+- **Host Settings**:
+  - Host Networking: Pods using `hostNetwork`.
+  - Host PID: Exploitable `hostPID` settings.
+  - Host Path: Check for exploitable `hostPath` volume mounts.
+- **Helm Tiller**: Locate and report Helm Tiller components in the cluster.
+- **Exposed API Endpoints**: Identify publicly accessible API server endpoints.
+- **Pod Security**:
+  - Analyze Pod Security Admission (PSA) configurations.
+  - Evaluate Pod Security Policies (PSP) for outdated configurations.
+- **Failed Pods**: Capture details of pods in failed states.
+- **Resource Limits and Requests**: Verify resource configurations for all pods.
+
+### Benchmarking and Scoring
+- **kube-bench**: Run CIS Kubernetes Benchmark tests to assess cluster security.
+- **kube-score**: Analyze downloaded manifests for best practices.
+
+### Flexible Operations
+- Run all checks at once or select specific modules.
+- Dry-run mode for previewing actions without execution.
+- Verbose mode for detailed logging.
+
+### Threaded Execution
+Run multiple checks in parallel using `--threads` for faster audits.  
+**Note:** The threading logic is a work in progress and may have errors. For guaranteed stability, use the standard or sequential version, which is fully functional.
+
+---
 
 ## Prerequisites
 
-Before using **KubeDumper**, ensure that the following tools are installed and accessible in your system's `PATH`:
+Ensure the following tools are installed and accessible in your system's `PATH`:
 
-- **kubectl**: Command-line tool for interacting with Kubernetes clusters.
-- **jq**: Lightweight and flexible command-line JSON processor.
-- **GNU Parallel** (optional): For running checks in parallel when using the `--threads` option.
+- **kubectl**: For interacting with Kubernetes clusters.
+- **jq**: Lightweight command-line JSON processor.
+- **kube-bench** (optional): For CIS Benchmark scans.
+- **kube-score** (optional): For manifest analysis.
+- **GNU Parallel** (optional): For parallelizing checks.
 
-### Installing Dependencies
-
-#### Install `kubectl`
-
-Follow the official [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/install-kubectl/) to install `kubectl`.
-
-#### Install `jq`
-
-- **macOS**:
-  ```bash
-  brew install jq
-  ```
-
-- **Ubuntu/Debian**:
-  ```bash
-  sudo apt-get update
-  sudo apt-get install -y jq
-  ```
-
-- **CentOS/RHEL**:
-  ```bash
-  sudo yum install -y epel-release
-  sudo yum install -y jq
-  ```
-
-#### Install GNU Parallel (Optional)
-
-- **macOS**:
-  ```bash
-  brew install parallel
-  ```
-
-- **Ubuntu/Debian**:
-  ```bash
-  sudo apt-get update
-  sudo apt-get install -y parallel
-  ```
-
-- **CentOS/RHEL**:
-  ```bash
-  sudo yum install -y parallel
-  ```
-
-**Note**: While GNU Parallel is optional, it is required if you intend to run checks in parallel using the `--threads` option.
+---
 
 ## Installation
 
-1. **Clone the Repository**:
+1. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/kubedumper.git
    ```
 
-2. **Navigate to the Directory**:
+2. Navigate to the directory:
    ```bash
    cd kubedumper
    ```
 
-3. **Make the Script Executable**:
+3. Make the script executable:
    ```bash
    chmod +x kubeDumper.sh
    ```
 
-4. **(Optional) Move to a Directory in PATH**:
+4. (Optional) Move the script to a directory in your `PATH`:
    ```bash
    sudo mv kubeDumper.sh /usr/local/bin/kubedumper
    ```
 
-   This allows you to run `kubedumper` from anywhere in your terminal.
+---
 
 ## Usage
 
@@ -122,89 +108,80 @@ Follow the official [Kubernetes documentation](https://kubernetes.io/docs/tasks/
 ./kubeDumper.sh [options]
 ```
 
-Or, if moved to a directory in `PATH`:
+Or, if moved to `PATH`:
 
 ```bash
 kubedumper [options]
 ```
 
+---
+
 ### Options
 
-- `-n <namespace(s)>`: Specify one or more namespaces (comma-separated) to audit (default: all).
-- `-o <output_dir>`: Specify a custom output directory for results (default: `./k8s_audit_results`).
-- `--format <text|json|html>`: Specify output format for the summary report (default: `text`).
-- `--check-secrets`: Check for exposed secrets.
-- `--check-env-vars`: Check for sensitive environment variables.
-- `--check-privileged`: Check for privileged/root pods.
-- `--check-api-access`: Check for insecure API access.
-- `--check-ingress`: Check for misconfigured ingress resources.
-- `--check-rbac`: Check for RBAC misconfigurations.
-- `--check-labels`: Check for missing labels/annotations on resources.
-- `--check-failed-pods`: Check and capture details of failed pods.
-- `--check-resources`: Check for missing resource requests and limits.
-- `--download-manifests`: Download all Kubernetes manifests to the output directory.
+#### General
+- `-n <namespace(s)>`: Specify namespaces (comma-separated) to audit (default: all).
+- `-o <output_dir>`: Set output directory (default: `./k8s_audit_results`).
+- `--format <text|json|html>`: Output format (default: `text`).
 - `--all-checks`: Run all available checks.
-- `--meta`: Collect meta artifacts about the cluster.
-- `--dry-run`: Preview actions without executing changes.
-- `--verbose`: Enable detailed logging to assist with debugging.
-- `--threads <num>`: Number of threads to run checks in parallel (default: 1).
+- `--meta`: Collect cluster-wide meta information.
+- `--dry-run`: Preview actions without executing.
+- `--verbose`: Enable detailed logs.
+- `--threads <num>`: Number of threads for parallel checks (default: 1).
 - `-h, --help`: Display the help menu.
+
+#### Specific Checks
+- `--check-secrets`
+- `--check-env-vars`
+- `--check-privileged`
+- `--check-api-access`
+- `--check-ingress`
+- `--check-egress`
+- `--check-rbac`
+- `--check-labels`
+- `--check-failed-pods`
+- `--check-resources`
+- `--check-security-context`
+- `--check-host-network`
+- `--check-hostpid`
+- `--check-host-path-mount`
+- `--check-helm-tiller`
+- `--check-exposed-api-endpoints`
+- `--check-pod-security-admission`
+- `--download-manifests`: Optionally analyze manifests using `kube-score`.
+- `--check-kube-bench`
+
+---
 
 ## Examples
 
-### 1. Audit All Namespaces and Collect Meta Information
+1. Audit all namespaces and collect meta information:
+   ```bash
+   ./kubeDumper.sh --all-checks --meta
+   ```
 
-```bash
-./kubeDumper.sh --all-checks --meta
-```
+2. Audit a specific namespace for RBAC misconfigurations:
+   ```bash
+   ./kubeDumper.sh -n kube-system --check-rbac
+   ```
 
-### 2. Audit a Specific Namespace for Exposed Secrets
+3. Save results to a custom directory:
+   ```bash
+   ./kubeDumper.sh --all-checks -o /tmp/k8s_audit_results
+   ```
 
-```bash
-./kubeDumper.sh -n my-namespace --check-secrets
-```
+4. Run all checks with verbose logging:
+   ```bash
+   ./kubeDumper.sh --all-checks --verbose
+   ```
 
-### 3. Save Results to a Custom Output Directory
+5. Analyze manifests using `kube-score`:
+   ```bash
+   ./kubeDumper.sh --download-manifests --check-kube-score
+   ```
 
-```bash
-./kubeDumper.sh --all-checks -o /path/to/custom/output
-```
-
-### 4. Run All Checks in Parallel Using 4 Threads
-
-```bash
-./kubeDumper.sh --all-checks --threads 4
-```
-
-*Note: Ensure `GNU parallel` is installed for multi-threaded execution.*
-
-### 5. Generate a Summary Report in JSON Format
-
-```bash
-./kubeDumper.sh --all-checks --format json
-```
-
-### 6. Perform a Dry Run to Preview Actions Without Executing
-
-```bash
-./kubeDumper.sh --all-checks --dry-run
-```
-
-### 7. Enable Verbose Logging for Detailed Output
-
-```bash
-./kubeDumper.sh --all-checks --verbose
-```
-
-### 8. Combine Multiple Options
-
-```bash
-./kubeDumper.sh -n default,kube-system --check-secrets --check-rbac --verbose -o /tmp/kube_audit --format html
-```
+---
 
 ## Output Structure
-
-Results are saved in a structured directory. By default, this is `./k8s_audit_results/`, but you can specify a custom location using the `-o` option.
 
 ```
 <output_dir>/
@@ -214,66 +191,42 @@ Results are saved in a structured directory. By default, this is `./k8s_audit_re
 │   ├── namespaces.txt
 │   ├── api_resources.txt
 │   ├── version.txt
-│   └── config_context.txt
-├── <namespace>/
-│   ├── exposed_secrets/
-│   │   └── <secret_name>.txt
-│   ├── env_variables/
-│   │   └── <pod_name>.txt
-│   ├── privileged_pods/
-│   │   └── privileged_pods.txt
-│   ├── ingress/
-│   │   └── insecure_ingress.txt
-│   ├── resources/
-│   │   └── missing_resources.txt
-│   ├── failed_pods/
-│   │   └── failed_pods.json
-│   └── labels/
-│       └── missing_labels.txt
-├── rbac/
-│   ├── rbac.json
-│   └── rbac_misconfigurations.txt
-├── api_access/
-│   └── insecure_api_access.txt
+│   ├── config_context.txt
+│   ├── dashboard_info.txt
 ├── manifests/
 │   └── <namespace>/
 │       ├── pods.yaml
 │       ├── services.yaml
-│       └── ... (other resources)
+│       └── ...
+├── kube_score/
+│   ├── pods_score.txt
+│   ├── services_score.txt
+│   └── ...
+├── checks/
+│   ├── exposed_secrets/
+│   │   └── <namespace>_secrets.txt
+│   ├── privileged_pods.txt
+│   ├── ingress/
+│   │   └── <namespace>_ingress.txt
+│   ├── rbac/
+│   │   ├── rbac.json
+│   │   ├── cluster_admin_details.txt
+│   │   └── rbac_misconfigurations.txt
+│   └── ...
 ├── summary_report.<format>
 └── kubeDumper.log
 ```
 
-- **meta/**: Contains cluster-wide meta information.
-- **<namespace>/**: Each audited namespace has its own directory containing specific check results.
-  - **exposed_secrets/**: Details of secrets with exposed data.
-  - **env_variables/**: Sensitive environment variables found in pods.
-  - **privileged_pods/**: List of privileged or root pods.
-  - **ingress/**: Ingress resources missing TLS or secure configurations.
-  - **resources/**: Pods missing resource requests or limits.
-  - **failed_pods/**: JSON details of pods in failed states.
-  - **labels/**: Pods missing required labels.
-- **rbac/**: RBAC configurations and any misconfigurations detected.
-- **api_access/**: Results related to API access permissions.
-- **manifests/**: Downloaded Kubernetes manifests organized by namespace.
-- **summary_report.<format>**: Summary of the audit in the specified format (`text`, `json`, `html`).
-- **kubeDumper.log**: Detailed logs of the audit process.
+---
 
 ## Logging
 
-**KubeDumper** maintains a detailed log file to assist with debugging and tracking the audit process. The log file is named `kubeDumper.log` and is located within the specified `OUTPUT_DIR`.
+**KubeDumper** maintains detailed logs to assist with debugging and tracking. Logs are saved as `kubeDumper.log` in the specified output directory.
 
-### Verbose Mode
-
-- When the `--verbose` option is enabled, additional log messages are displayed in the console.
-- All log entries, including those not displayed in verbose mode, are saved to `kubeDumper.log` with timestamps for traceability.
-
-**Example Log Entry:**
-```
-[LOG] 2024-04-27 15:30:45 Starting check_secrets.
-[LOG] 2024-04-27 15:30:50 Completed check_secrets.
-```
+---
 
 ## License
 
 Licensed under the MIT License. See `LICENSE` for details.
+
+---
