@@ -256,9 +256,9 @@ Let’s work together to secure the web, one test at a time! 🌟
 ## Follow Us on Social Media
 
 - 🐦 **Twitter:** [@AverageJoesHost](https://twitter.com/AverageJoesHost)
-- 🎥 **YouTube:** [Average Joe's Hosting on YouTube](https://www.youtube.com/channel/YourChannel)
-- 👥 **Facebook:** [Average Joe's Hosting on Facebook](https://www.facebook.com/AverageJoesHostingLLC)
-- 💼 **LinkedIn:** [Average Joe's Hosting on LinkedIn](https://www.linkedin.com/company/averagejoeshostingllc)
+- 🎥 **YouTube:** [Average Joe's Hosting on YouTube](https://www.youtube.com/@AverageJoesHosting)
+- 👥 **Facebook:** [Average Joe's Hosting on Facebook](https://www.facebook.com/AverageJoesHosting)
+- 💼 **LinkedIn:** [Average Joe's Hosting on LinkedIn](https://www.linkedin.com/company/averagejoeshosting/)
 
 🎉 Get started with Automation Booster and let your Discord server do the work for you!
 
